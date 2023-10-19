@@ -1,11 +1,12 @@
 #encoding: euc-kr
 
 #EMC32 Figure Exporter GUI
-import os, sys, locale, webbrowser
+import os, sys, webbrowser #,locale
 from PyQt6.QtWidgets import QDialog, QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QFileDialog, QMessageBox, QProgressBar, QCheckBox, QMenuBar, QLineEdit, QHBoxLayout
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QCursor, QFont, QIcon, QAction
 from wand.image import Image as WandImage
+from PIL import Image as PImage
 
 magick_home = os.getcwd() + os.sep
 os.environ["PATH"] += os.pathsep + magick_home + os.sep
@@ -68,6 +69,7 @@ class Chkbox(QDialog):
         self.layout.addWidget(self.button_cancel)
         self.adjustSize()
         self.setLayout(self.layout)
+
     def on_insert_option(self, state):
         self.insert_option = state == Qt.CheckState.Checked.value
         return self.insert_option
@@ -90,6 +92,11 @@ class EMC32Extractor(QWidget):
         # check_locale_button = QPushButton("Check_Locale", self)
         # check_locale_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         # check_locale_button.clicked.connect(self.on_check_locale)
+        self.pillow_option = False
+        check_pillow_option = QCheckBox("Uncheck = Wand // Check = Pillow" , self)
+        check_pillow_option.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        check_pillow_option.stateChanged.connect(self.on_select_pillow_option)
+
         input_folder_button = QPushButton("Select Input Folder", self)
         input_folder_button.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         input_folder_button.clicked.connect(self.on_select_input_folder)
@@ -144,6 +151,7 @@ class EMC32Extractor(QWidget):
         vbox.addWidget(self.checked_changed_file_label)
         vbox.addWidget(output_folder_button)
         vbox.addWidget(self.output_folder_label)
+        vbox.addWidget(check_pillow_option)
         vbox.addWidget(extract_button)
         vbox.addWidget(self.status_label)
         vbox.addWidget(self.progress_bar)
@@ -172,15 +180,19 @@ class EMC32Extractor(QWidget):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Library Used")
         msg_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        msg_box.setText("Python3.11.5(Wand, PyQt6, Pyinstaller); ImageMagick(Wand)")
+        msg_box.setText("Python3.11.6(Wand, PyQt6, Pillow, Pyinstaller); ImageMagick(Wand)")
         msg_box.exec()
 
     def show_algorithm_dialog(self):
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Algorithm Used")
         msg_box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-        msg_box.setText("[Python Libray(Wand)], ImageMagick\nWand(Image(WMF -> PNG))")
+        msg_box.setText("[(Wand, Pillow)], ImageMagick\nWand&Pillow(Image(WMF -> PNG))")
         msg_box.exec()
+
+
+    def on_select_pillow_option(self, state):
+        self.pillow_option = state == Qt.CheckState.Checked.value
 
 
     # def on_check_locale(self): #Check Current Locale.
@@ -203,6 +215,7 @@ class EMC32Extractor(QWidget):
     #     except Exception as e:
     #         msg_box.setText("Error:", e)
     #         msg_box.exec()
+
 
     def on_select_input_folder(self):
         self.num_images = 0
@@ -363,7 +376,7 @@ class EMC32Extractor(QWidget):
 # '.'을 '_'로 치환 4번째 <- 완료
 # filename 변경 기능 <- filename 기능에 대한 피드백 필요 <- 완료
     def extract_image(self):
-            self.resize_thread = EMC32FigureExportThread(self.input_folder, self.output_folder, self.dpi_size, self.num_images, self.tickedFolder, self.tickedFile, self.checkboxLineEditFolderName, self.checkboxLineEditFileName)
+            self.resize_thread = EMC32FigureExportThread(self.input_folder, self.output_folder, self.dpi_size, self.num_images, self.tickedFolder, self.tickedFile, self.checkboxLineEditFolderName, self.checkboxLineEditFileName, self.pillow_option)
             self.resize_thread.nofile.connect(self.show_error)
             self.resize_thread.progressChanged.connect(self.update_progress)
             self.resize_thread.finished.connect(self.extraction_finished)
@@ -419,7 +432,7 @@ class EMC32FigureExportThread(QThread):
     finished = pyqtSignal()
     nofile = pyqtSignal()
 
-    def __init__(self, input_folder, output_folder, dpi_size, num_images, tickedFolder, tickedFile,checkboxLineEditFolderName, checkboxLineEditFileName):
+    def __init__(self, input_folder, output_folder, dpi_size, num_images, tickedFolder, tickedFile,checkboxLineEditFolderName, checkboxLineEditFileName, pillow_option):
         super().__init__()
         self.input_folder = input_folder
         self.output_folder = output_folder
@@ -429,6 +442,8 @@ class EMC32FigureExportThread(QThread):
         self.tickedFile = tickedFile
         self.checkboxLineEditFolderName = checkboxLineEditFolderName
         self.checkboxLineEditFileName = checkboxLineEditFileName
+        self.check_pillow_option = pillow_option
+        print(self.check_pillow_option)
     def run(self):
         processed_images = 0
         try:             # Convert and save the image as PNG
@@ -446,18 +461,26 @@ class EMC32FigureExportThread(QThread):
                                         foldername = self.checkboxLineEditFolderName[i]
                                         name = self.checkboxLineEditFileName[j]
                                         with open(os.path.join(folder_graph_path, filename), "rb") as input_file:
-                                            wmf_data = input_file.read()
-                                        with WandImage(blob=wmf_data, resolution = int(self.dpi_size)) as img:
-                                            foldername = str(foldername).lstrip('0')
-                                            savename = (f"{self.output_folder}/{foldername[:4].replace('.','_',1) + foldername[4:]}_{name}.png")
-                                            img.format = 'PNG'
-                                            img.save(filename = savename)
-                                            savename=''
+                                            if self.check_pillow_option:
+                                                with PImage.open(input_file) as img:
+                                                    foldername = str(foldername).lstrip('0')
+                                                    savename = (f"{self.output_folder}/{foldername[:4].replace('.','_',1) + foldername[4:]}_{name}.png")
+                                                    img.load(dpi=int(self.dpi_size))
+                                                    img.save(savename, "PNG")
+                                                    savename=''
+                                            else:
+                                                wmf_data = input_file.read()
+                                                with WandImage(blob=wmf_data, resolution = int(self.dpi_size)) as img:
+                                                    foldername = str(foldername).lstrip('0')
+                                                    savename = (f"{self.output_folder}/{foldername[:4].replace('.','_',1) + foldername[4:]}_{name}.png")
+                                                    img.format = 'PNG'
+                                                    img.save(filename = savename)
+                                                    savename=''
                                         processed_images += 1
                                         self.progress = int((processed_images / self.num_images) * 100)
                                         self.progressChanged.emit(self.progress, processed_images, self.num_images)
             self.finished.emit()
-            return         
+            return
         except Exception as e:
             raise Exception(f"Error extracting image '{self.input_folder}': {str(e)}")
 
