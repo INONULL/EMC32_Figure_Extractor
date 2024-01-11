@@ -1,9 +1,9 @@
 # EMC32_Figure_Extractor  
-This is 'EMC32_Figure_Extraction' application. Coded by JunSung LEE Contact(Bug_Report): ljs_fr@live.com  
+This is 'EMC32_Figure_Extraction' application. Coded by JunSung LEE
 This is a GUI_Version of EMC32_Figure_Extractor;  
 
 
-# **How To Run Code:**  
+# **How To Run:**  
 pip install -r requirements.txt  
 python ./EMC32_Figure_Extractor.py  
 or  
