@@ -18,3 +18,5 @@ NSIS
 
 # **Installer version contains all above**  
 ※ Windows_version available ONLY
+
+[HowToUse](HowToUse.pdf)
